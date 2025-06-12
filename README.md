@@ -273,7 +273,7 @@ customer
 Export final tibble to CSV.
 ```{r}
 # Use write.csv or readr::write_csv()
-write.csv(customer, file="customer_data")
+write.csv(customer, file="customer_data.csv")
 ```
 
 ### Project B: Sales Analysis
@@ -328,7 +328,7 @@ h
 Export the result to a file.
 
 ```{r}
-write.csv(h, file = "big_spender")
+write.csv(h, file = "big_spender.csv")
 ```
 
 
@@ -344,8 +344,13 @@ Write a complete pipeline that:
 - Saves the result
 
 ```{r}
+shop_db <- dbConnect(SQLite(), "shop.db")
+cust_tbl <- tbl(shop_db, "customers")
+sales_tbl <- tbl(shop_db, "sales")
 
+g <- cust_tbl %>% left_join(sales_tbl, by="customer_id") %>% filter(age > 25) %>% group_by(customer_id) %>% summarise(avg_sales = mean(price), total_spending = sum(price))
 
+write.csv(g, file="pipeline.csv")
 ```
 
 ### Advanced Reflection
