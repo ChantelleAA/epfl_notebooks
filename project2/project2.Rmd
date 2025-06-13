@@ -15,6 +15,7 @@ library(DBI)
 library(RSQLite)
 library(dplyr)
 library(tibble)
+library(ggplot2)
 ```
 
 # Part 1 - Obtaining the Data
@@ -54,11 +55,78 @@ Get columns of student table
 ```{r}
 colnames(student)
 ```
+
+
 ```{r}
 total_students = student %>% 
   mutate(total_answers = TotallyDisagree+Disagree+Agree+TotallyAgree) %>% collect()
 
-paste("The total number of students are:", total_students$total_answers[1])
+print(total_students)
+
+paste("The total number of answers obtained from students is:", sum(total_students$total_answers))
 ```
+## Q2 - What is the total number of answers obtained from professors?
+
+Get columns of professors table
+```{r}
+colnames(prof)
+```
+
+
+```{r}
+total_profs = prof %>% 
+  mutate(total_answers = TotallyDisagree+Disagree+Agree+TotallyAgree) %>% collect()
+
+print(total_profs)
+
+paste("The total number of answers obtained from professors is:", sum(total_profs$total_answers))
+
+```
+
+## Q3 - Does each question have the same number of answers?
+
+```{r}
+print(unique(total_students$total_answers))
+hist(total_students$total_answers)
+```
+From the histogram above, we observe that while most questions have 244 answers, some have less, implying that each question does not have the same number of students answering it.
+
+Similarly, for professors:
+
+```{r}
+print(unique(total_profs$total_answers))
+hist(total_profs$total_answers)
+```
+
+The results show us that all questions do not have the same number of answers, while most have the same number.
+
+We could look deeper to see the questions that have fewer answers between students and professors.
+
+### For students
+```{r}
+max_answers <- max(total_students$total_answers)
+
+
+min_answered_q_students <- total_students %>% filter(total_answers < max_answers) %>% 
+  select(QuestionID, total_answers) %>% 
+  arrange(desc(total_answers))
+
+ggplot(min_answered_q_students, aes(QuestionID, total_answers, fill = total_answers))+geom_col()
+```
+
+### For professors
+
+```{r}
+max_answers <- max(total_profs$total_answers)
+
+
+min_answered_q_profs <- total_profs %>% filter(total_answers < max_answers) %>% 
+  select(QuestionID, total_answers) %>% 
+  arrange(desc(total_answers))
+
+ggplot(min_answered_q_profs, aes(QuestionID, total_answers, fill = total_answers))+geom_col()
+```
+
+
 
 
