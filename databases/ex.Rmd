@@ -1,0 +1,374 @@
+---
+title: "Learning SQL-like Queries in R with {dplyr}"
+author: "Chantelle"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Theme 1: Connecting R to Databases
+
+### Objective
+Learn to connect to a SQLite database using R and explore tables using `DBI` and `RSQLite`.
+
+### Packages Required
+```{r}
+install.packages("DBI")
+install.packages("RSQLite")
+install.packages("dplyr")
+install.packages("tibble")
+```
+
+### Step-by-Step Connection
+```{r}
+library(DBI)
+library(RSQLite)
+library(dplyr)
+library(tibble)
+
+# Set up the database connection
+shop_db <- dbConnect(SQLite(), "shop.db")
+
+# List all tables in the database
+dbListTables(shop_db)
+```
+
+### Note
+Make sure `shop.db` is in your R working directory. Use `getwd()` to confirm. You can move to it using `setwd("your/folder/path")` if needed.
+
+### Inspecting Tables
+```{r}
+# Connect to customers table
+customers_tbl <- tbl(shop_db, "customers")
+
+# Display a preview
+customers_tbl
+```
+
+### Understanding What You See
+You’re seeing a preview because `{dplyr}` delays full execution. This is called lazy evaluation and it avoids loading all data into memory.
+
+### Exercise 1: Explore Table Columns
+Use `select()` to show only the `first_name` and `age` columns.
+
+```{r}
+# Your code here
+customers_tbl %>% 
+  select(first_name, age)
+```
+
+### Exercise 2: Filter Rows
+Show only customers older than 25.
+
+```{r}
+customers_tbl %>% filter(age > 25)
+# Your code here
+```
+
+### Exercise 3: Add New Columns
+Create a new column `age_in_5` which is age + 5.
+
+```{r}
+customers_tbl %>% mutate(age_in_data = age + 5)
+# Your code here
+```
+
+### Notes on Lazy Evaluation
+- `tbl()` creates a *lazy* reference to the table. It doesn't load the full data into memory.
+- To execute the pipeline and retrieve data, use `collect()`.
+
+### Exercise 4: Use `collect()`
+Collect the results of your previous query.
+
+```{r}
+customers_tbl %>% mutate(age_in_data = age + 5) %>% collect()
+# Your code here
+```
+
+### Exercise 5: Load and explore the `sales` table
+```{r}
+sales_tbl <- tbl(shop_db, "sales")
+sales_tbl
+```
+
+### Exercise 6: Count total number of rows in `sales_tbl`
+> Hint: use `count()` on a constant column like `customer_id` or just use `tally()`.
+
+```{r}
+# Your code here
+sales_tbl %>% select(customer_id) %>% count()
+sales_tbl %>% tally()
+```
+
+### Exercise 7: Which customer had the highest number of purchases?
+Group by `customer_id`, count, then join with `customers_tbl` to get name.
+
+```{r}
+sales_tbl %>% collect()
+```
+
+```{r}
+sales_tbl %>% group_by(customer_id) %>% tally(sort=T) %>%  collect()
+```
+
+
+```{r}
+sales_tbl %>% 
+  group_by(customer_id) %>% 
+  tally(sort=TRUE) %>% 
+  left_join(customers_tbl, by = 'customer_id') %>% 
+  select(customer_id, first_name, last_name, n) %>% 
+  collect()
+```
+
+### Bonus Tip
+Try writing your code in blocks and running each one. Don’t be afraid to print intermediate results to understand what’s happening.
+
+## Theme 2: Replacing SQL with `{dplyr}`
+
+### Objective
+Use `{dplyr}` to perform common SQL-like tasks without writing SQL.
+
+### Intuition
+The functions in `{dplyr}` closely map to SQL keywords:
+
+| dplyr Function | SQL Equivalent  |
+|----------------|------------------|
+| select()       | SELECT           |
+| filter()       | WHERE            |
+| arrange()      | ORDER BY         |
+| mutate()       | column creation  |
+| group_by() + summarise() | GROUP BY + aggregation |
+| left_join()    | LEFT JOIN        |
+
+### Exercise 8: SQL to dplyr Translation
+**SQL:**
+```sql
+SELECT first_name FROM customers WHERE age > 30;
+```
+**dplyr:**
+```{r}
+# Your code here
+customers_tbl %>% filter(age > 30) %>% select(first_name) %>% collect()
+```
+
+### Exercise 9: Multiple Filters
+Show `first_name`s of customers who are male or under 18, sorted by age.
+
+```{r}
+# Your code here
+customers_tbl %>% filter(gender == 'Male' | age < 18 ) %>% arrange(age) %>% collect
+```
+
+### Exercise 10: Count by Group
+Count how many customers exist by gender.
+
+```{r}
+# Your code here
+customers_tbl %>% group_by(gender) %>% tally()
+```
+
+### Exercise 11: Join Tables
+Join `customers_tbl` with `sales_tbl` on `customer_id`.
+
+```{r}
+# Your join code here
+customers_tbl %>% left_join(sales_tbl, by='customer_id')
+```
+
+### Exercise 12: Add Combined Name
+Create a new column `name` combining `first_name` and `last_name` using `paste()`.
+
+```{r}
+# Your code here
+customers_tbl %>% mutate(name = paste(first_name, " ", last_name))
+```
+
+### Exercise 13: Summary Aggregation
+Get average price of sales by gender. Use the joined table.
+
+```{r}
+# Your code here
+customers_tbl %>% left_join(sales_tbl, by = "customer_id") %>% select(gender, price) %>% group_by(gender) %>% summarise(avg_price = mean(price))
+```
+
+### Exercise 14: Using `show_query()`
+Use `show_query()` on your joined pipeline from above. What SQL is generated?
+
+```{r}
+# Your code here
+customers_tbl %>% left_join(sales_tbl, by = "customer_id") %>% select(gender, price) %>% group_by(gender) %>% summarise(avg_price = mean(price)) %>% show_query()
+```
+
+### Exercise 15: Failing Case with str_glue()
+Try using `stringr::str_glue()` before `collect()`.
+
+```{r}
+# Your code here
+customers_tbl %>% mutate(name = str_glue("{first_name} {last_name}")) %>% collect()
+
+# this fails because there is no translation for str_glue in SQL.
+```
+
+### Exercise 16: Correct Use of `str_glue()`
+Use `collect()` then use `str_glue()` safely.
+
+```{r}
+# Your code here
+customers_tbl %>% collect() %>% mutate(name = stringr::str_glue("{first_name} {last_name}"))
+```
+
+## Theme 3: Independent Tasks
+
+### Project A: Customer Insights
+1. Count male vs. female customers.
+2. Calculate average age by gender.
+3. List top 3 customers with most purchases.
+4. Create `full_name` using `paste()`.
+5. Label age groups: "young" (<20), "adult" (20–49), "senior" (50+).
+6. Export final tibble to CSV.
+
+Count male vs. female customers.
+
+```{r}
+customers_tbl %>% group_by(gender) %>% count()
+```
+
+Calculate average age by gender.
+
+```{r}
+customers_tbl %>% 
+  group_by(gender) %>% 
+  summarize(avg_age = mean(age)) %>% 
+  collect()
+```
+
+List top 3 customers with most purchases.
+
+```{r}
+sales_tbl %>% 
+  count(customer_id, name = "sales_count") %>% 
+  left_join(customers_tbl, by='customer_id') %>%
+  mutate(full_name = paste(first_name, last_name, sep=" ")) %>%
+  select(full_name, sales_count) %>% 
+  slice_max(order_by = sales_count, n = 3, with_ties = F)
+
+```
+
+Label age groups: "young" (<20), "adult" (20–49), "senior" (50+).
+
+```{r}
+customer <- customers_tbl %>% mutate( age_groups = case_when(
+  age < 20 ~ "young",
+  age < 49 ~ "adult",
+  T ~ "senior"
+)) %>% collect()
+
+customer
+```
+
+Export final tibble to CSV.
+```{r}
+# Use write.csv or readr::write_csv()
+write.csv(customer, file="customer_data.csv")
+```
+
+### Project B: Sales Analysis
+1. Count number of sales.
+2. Calculate average sale price.
+3. Filter for `price > 20` and count them.
+4. Find the day with the highest total sales.
+5. Join with customers and analyze total sales per gender.
+6. Create a column `is_big_spender` if total_sales > 50.
+7. Export the result to a file.
+
+Count number of sales.
+
+```{r}
+sales_tbl %>% count()
+```
+
+Calculate average sale price.
+
+```{r}
+sales_tbl %>% summarise(avg_sale_price = mean(price))
+```
+
+Filter for `price > 20` and count them.
+
+```{r}
+sales_tbl %>% filter(price > 20) %>% count()
+```
+
+Find the day with the highest total sales.
+
+```{r}
+sales_tbl %>% count(sale_date, name = "daily_sale_count") %>% slice_max(order_by = daily_sale_count, n = 1)
+```
+
+Join with customers and analyze total sales per gender.
+
+```{r}
+# customers_tbl %>% left_join(sales_tbl, by = "customer_id") %>% group_by(gender) %>% summarise(avg_sales = mean(price))
+
+customers_tbl %>% left_join(sales_tbl, by = "customer_id") %>% count(gender, name = "total_sales")
+
+```
+
+Create a column `is_big_spender` if total_sales > 50.
+
+```{r}
+h <- customers_tbl %>% left_join(sales_tbl, by = "customer_id") %>% count(gender, name = "total_sales") %>% mutate(is_big_spender = total_sales > 50)
+h
+```
+
+Export the result to a file.
+
+```{r}
+write.csv(h, file = "big_spender.csv")
+```
+
+
+
+### Project C: Full Pipeline Practice
+Write a complete pipeline that:
+- Loads both tables
+- Joins them
+- Filters customers over 25 years old
+- Computes average sales per customer
+- Labels customer segment by total spending
+- Collects and returns a final tibble
+- Saves the result
+
+```{r}
+shop_db <- dbConnect(SQLite(), "shop.db")
+cust_tbl <- tbl(shop_db, "customers")
+sales_tbl <- tbl(shop_db, "sales")
+
+g <- cust_tbl %>% left_join(sales_tbl, by="customer_id") %>% filter(age > 25) %>% group_by(customer_id) %>% summarise(avg_sales = mean(price), total_spending = sum(price))
+
+write.csv(g, file="pipeline.csv")
+```
+
+### Advanced Reflection
+- How would this change if the database had millions of rows?
+- Where would you place `collect()` to ensure optimal performance?
+- Can you modularize your pipeline using functions?
+
+```{r}
+# Disconnect when done
+dbDisconnect(shop_db)
+```
+
+---
+
+**Reflection:** Where did you place `collect()` in your pipelines and why? What issues did you face when trying to use non-translatable functions before `collect()`?
+
+**Tip:** Always push as much filtering and summarising before `collect()` to minimize memory use and speed up your workflow.
+
+**Challenge:** Replace your SQL-based workflows with full `{dplyr}` pipelines and compare performance and readability.
+
+**Extension:** Explore the use of `dbWriteTable()` to write a new table to your SQLite database from a tibble. Try round-tripping a small summary table into the DB and back.
