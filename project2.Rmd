@@ -1,0 +1,58 @@
+---
+title: "Project 2"
+author: "Chantelle Amoako-Atta"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import libraries
+```{r libraries}
+library(DBI)
+library(RSQLite)
+library(dplyr)
+library(tibble)
+```
+
+# Part 1 - Obtaining the Data
+
+## Connecting to the database
+```{r database connection}
+survey <- dbConnect(SQLite(), "likert_survey/likert_survey.db")
+```
+
+## Checking tables in the database
+```{r}
+dbListTables(survey)
+```
+Load student and professor tables
+```{r}
+student <- tbl(survey, "STUDENTS")
+prof <- tbl(survey, "PROFESSORS")
+```
+## Previeing the tables' contents
+
+### students
+```{r}
+student
+```
+
+### professors
+```{r}
+prof
+```
+
+
+# Part 2 - Exploring the data
+
+## Q1 - What is the total number of answers obtained from students?
+
+```{r}
+student %>% 
+  collect() %>% 
+  select(2:5) %>% 
+  mutate(sum = rowSums(., na.rm = TRUE))
+```
