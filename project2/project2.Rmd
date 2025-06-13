@@ -50,9 +50,15 @@ prof
 
 ## Q1 - What is the total number of answers obtained from students?
 
+Get columns of student table
 ```{r}
-student %>% 
-  collect() %>% 
-  select(2:5) %>% 
-  mutate(sum = rowSums(., na.rm = TRUE))
+colnames(student)
 ```
+```{r}
+total_students = student %>% 
+  mutate(total_answers = TotallyDisagree+Disagree+Agree+TotallyAgree) %>% collect()
+
+paste("The total number of students are:", total_students$total_answers[1])
+```
+
+
