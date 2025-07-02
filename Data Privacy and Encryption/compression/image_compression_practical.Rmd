@@ -1,0 +1,10 @@
+---
+title: "Image Compression Practicals"
+output: html_notebook
+---
+
+
+```{r}
+
+
+```
