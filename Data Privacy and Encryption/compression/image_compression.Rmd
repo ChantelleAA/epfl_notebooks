@@ -75,7 +75,7 @@ compress_color <- function(channel_matrix, keep_top_k = 50) {
   
   # We only keep the first 'k' most important parts
   u <- svd_result$u[, 1:keep_top_k]
-  d <- diag(svd_result$d[  ])
+  d <- diag(svd_result$d[ 1:keep_top_k ])
   v <- svd_result$v[, 1:keep_top_k]
   
   # This puts the image back together using only the important parts.
