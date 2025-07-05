@@ -1,0 +1,1441 @@
+---
+author: Chantelle
+date: 07/05/2025
+title: "Encryption and Anonymization"
+output: html_notebook
+---
+
+## What You'll Learn
+
+By the end of these exercises, you'll understand:
+- **What encryption and hashing actually do** (with simple analogies)
+- **When to use each technique** in real situations
+- **How to protect data** while keeping it useful for analysis
+- **Common mistakes** and how to avoid them
+
+## Key Concepts Explained Simply
+
+### Encryption vs Hashing - The Restaurant Analogy
+
+**Encryption** is like putting your food in a locked container:
+- You can unlock it later with the right key
+- The food is exactly the same when you open it
+- Someone without the key can't see or eat your food
+
+**Hashing** is like putting your food in a blender:
+- You can't get the original food back
+- But you can tell if two people had the same meal (same "smoothie")
+- Even knowing what the smoothie looks like doesn't tell you the original ingredients
+
+### Public vs Private Keys - The Mailbox Analogy
+
+Think of **public keys** like your home address:
+- Anyone can know your address
+- People use it to send you mail
+- But only you can open your mailbox (with your private key)
+
+**Private keys** are like your mailbox key:
+- Only you should have it
+- You use it to read mail sent to you
+- Never share this with anyone!
+
+---
+
+## Setup and Installation
+
+```{r}
+# First, let's install the packages we need
+# Think of packages like toolboxes - each one has different tools for different jobs
+
+# Install packages (only need to do this once)
+install.packages(c("digest", "dplyr", "readr"))
+
+# Load the packages (do this every time you start R)
+library(digest)  # Our "blender" for hashing
+library(dplyr)   # Our "organizer" for data manipulation  
+library(readr)   # Our "reader" for files
+
+# Let's test that everything works
+print("All packages loaded successfully!")
+```
+
+---
+
+## Exercise 1: Understanding Hashing with Simple Examples
+
+### What is Hashing? (Visual Example)
+
+Think of hashing like a magic box that always produces the same output for the same input, but you can never reverse it.
+
+```{r}
+# Let's start with something simple - your name!
+# Replace "Your Name" with your actual name
+my_name <- "Christian"
+name2 <- "Christiana"
+
+print(paste("Hello", my_name))
+print(paste("Hello", name2))
+
+# Now let's see what happens when we "hash" your name
+# This is like putting it through our magic blender
+hashed_name <- digest(my_name, algo = "md5")
+hashed_name2 <- digest(name2, algo = "md5")
+
+print("Original vs Hashed:")
+print(paste("Original:", my_name))
+print(paste("Hashed:  ", hashed_name))
+print(paste("Hashed2:  ", hashed_name2))
+
+# KEY POINT: The hash is completely different, but it's always the same 
+# for your name. Try running this code again - you'll get the exact same hash!
+```
+
+### Testing Hash Consistency
+
+```{r}
+# Let's prove that hashing is consistent (always gives same result)
+print("Testing if hashing is consistent...")
+
+# Hash the same name multiple times
+hash1 <- digest("Alice Smith", algo = "md5")
+hash2 <- digest("Alice Smith", algo = "md5") 
+hash3 <- digest("Alice Smith", algo = "md5")
+
+print("Results for 'Alice Smith':")
+print(paste("Hash #1:", hash1))
+print(paste("Hash #2:", hash2))
+print(paste("Hash #3:", hash3))
+print(paste("Are they all the same?", identical(hash1, hash2) && identical(hash2, hash3)))
+
+# Now let's see what happens with a tiny change
+hash_different <- digest("Alice Smyth", algo = "md5")  # Changed 'i' to 'y'
+print(paste("Hash for 'Alice Smyth':", hash_different))
+print("NOTICE: Even a tiny change creates a completely different hash!")
+```
+
+### Exploring Different Hash Types
+
+Just like there are different types of blenders, there are different hash algorithms:
+
+```{r}
+# Let's test different "blenders" on the same input
+test_input <- "Secret Customer Data"
+
+print("Different hash algorithms on the same input:")
+print(paste("Original text:", test_input))
+print("")
+
+# MD5 - Fast but not super secure (like a basic blender)
+md5_hash <- digest(test_input, algo = "md5")
+print(paste("MD5:    ", md5_hash))
+print(paste("Length: ", nchar(md5_hash), "characters"))
+
+# SHA1 - More secure (like a better blender) 
+sha1_hash <- digest(test_input, algo = "sha1")
+print(paste("SHA1:   ", sha1_hash))
+print(paste("Length: ", nchar(sha1_hash), "characters"))
+
+# SHA256 - Very secure (like a professional blender)
+sha256_hash <- digest(test_input, algo = "sha256")
+print(paste("SHA256: ", sha256_hash))
+print(paste("Length: ", nchar(sha256_hash), "characters"))
+
+# CRC32 - Fast but weak (like a hand mixer)
+crc32_hash <- digest(test_input, algo = "crc32")
+print(paste("CRC32:  ", crc32_hash))
+print(paste("Length: ", nchar(crc32_hash), "characters"))
+
+print("KEY POINT: Longer hashes are usually more secure!")
+```
+
+---
+
+## Exercise 2: Working with Real Data
+
+### Creating Our Sample Dataset
+
+Let's create a realistic customer database to work with:
+
+```{r}
+# Think of this as a small company's customer database
+# Each row is one customer with their information
+
+print("Creating sample customer database...")
+
+customers <- data.frame(
+  # Customer ID - like a membership number
+  customer_id = paste0("CUST", 1001:1010),
+  
+  # Personal information - this is sensitive!
+  name = c("Alice Johnson", "Bob Smith", "Carol Davis", "David Wilson", "Eva Brown",
+           "Frank Miller", "Grace Lee", "Henry Taylor", "Ivy Chen", "Jack Wilson"),
+  
+  # Contact information - also sensitive!
+  email = c("alice@email.com", "bob@gmail.com", "carol@yahoo.com", "david@email.com", 
+            "eva@gmail.com", "frank@email.com", "grace@yahoo.com", "henry@gmail.com",
+            "ivy@email.com", "jack@gmail.com"),
+  
+  # Location - somewhat sensitive (can identify people)
+  city = c("New York", "New York", "Los Angeles", "New York", "Chicago",
+           "Los Angeles", "Chicago", "New York", "Los Angeles", "Chicago"),
+  
+  # Business data - usually okay to keep
+  purchase_amount = c(150.00, 75.50, 200.00, 300.25, 89.99,
+                     125.75, 175.50, 220.00, 95.25, 180.00),
+  
+  # More business data
+  product_category = c("Electronics", "Clothing", "Electronics", "Home", "Clothing",
+                      "Electronics", "Home", "Electronics", "Clothing", "Home"),
+  
+  stringsAsFactors = FALSE  # This prevents R from treating text as categories
+)
+
+# Let's look at our data
+print("Our customer database:")
+print(customers)
+
+print("Quick summary:")
+print(paste("Number of customers:", nrow(customers)))
+print(paste("Number of data fields:", ncol(customers)))
+```
+
+### The Big Problem: Why We Need Protection
+
+```{r}
+print("THE PROBLEM: Why this data is risky to share...")
+
+# Imagine we want to share this data with a marketing company
+# But there are problems:
+
+print("Privacy risks in our current data:")
+
+# Risk 1: Direct identifiers
+print("1. DIRECT IDENTIFIERS (immediate privacy risk):")
+print("   - Names: Can immediately identify people")
+print("   - Emails: Can contact people directly") 
+print("   - Customer IDs: Can link to other databases")
+
+# Risk 2: Indirect identifiers  
+print("2. INDIRECT IDENTIFIERS (can identify people when combined):")
+print("   - City + Purchase amount might identify someone")
+print("   - Product category + city might narrow it down")
+
+# Let's see an example of indirect identification
+print("\nExample of indirect identification risk:")
+high_spenders <- customers[customers$purchase_amount > 250, ]
+print("High spenders (>$250):")
+print(high_spenders[, c("name", "city", "purchase_amount")])
+print("NOTE: If someone knows 'a person in New York bought $300+ of Home products', they could identify David!")
+
+print("\nSOLUTION: We need to anonymize this data!")
+```
+
+---
+
+## Exercise 3: Basic Anonymization - Your First Protection
+
+### The Vectorization Challenge (and Solution!)
+
+First, let's understand a tricky technical problem and how to solve it:
+
+```{r}
+print("TECHNICAL CHALLENGE: The Vectorization Problem")
+
+# WRONG WAY (this is a common mistake!)
+print("What happens if we do this wrong:")
+
+# This would try to hash the entire column as one piece
+# wrong_result <- digest(customers$name, algo = "md5")
+# print(paste("Wrong approach gives:", wrong_result))
+# print("NOTE: This creates the SAME hash for ALL names - not what we want!")
+
+# CORRECT WAY
+print("\nThe RIGHT way to hash multiple items:")
+
+# We need to hash each name individually
+# sapply() applies the digest function to each name separately
+hash_names_correctly <- sapply(customers$name, function(single_name) {
+  digest(single_name, algo = "md5")
+})
+
+print("Correctly hashed names:")
+for(i in 1:3) {  # Show first 3 examples
+  print(paste(customers$name[i], "->", hash_names_correctly[i]))
+}
+
+print("KEY POINT: Each name gets its own unique hash!")
+```
+
+### Creating Our First Anonymized Dataset
+
+```{r}
+print("CREATING ANONYMIZED VERSION OF OUR DATA")
+
+# Let's create a helper function to make hashing easier
+# Think of this as our "anonymization machine"
+anonymize_column <- function(column_data, algorithm = "md5") {
+  # This function takes a column of data and hashes each item
+  sapply(column_data, function(item) {
+    digest(as.character(item), algo = algorithm)
+  })
+}
+
+# Test our function
+print("Testing our anonymization machine:")
+test_names <- c("Alice", "Bob", "Alice")  # Note: Alice appears twice
+test_hashes <- anonymize_column(test_names)
+
+print("Input:  Alice, Bob, Alice")
+print(paste("Output:", paste(test_hashes, collapse = ", ")))
+print("NOTE: The two 'Alice' entries have the same hash!")
+
+# Now let's anonymize our customer data
+print("\nAnonymizing customer data...")
+
+customers_anonymized <- customers
+customers_anonymized$name_hash <- anonymize_column(customers$name)
+customers_anonymized$email_hash <- anonymize_column(customers$email)
+customers_anonymized$customer_id_hash <- anonymize_column(customers$customer_id)
+
+# Remove the original sensitive columns
+customers_anonymized <- customers_anonymized[, !names(customers_anonymized) %in% c("name", "email", "customer_id")]
+
+print("BEFORE (original data):")
+print(customers[1:3, c("customer_id", "name", "email", "city")])
+
+print("\nAFTER (anonymized data):")
+print(customers_anonymized[1:3, c("customer_id_hash", "name_hash", "email_hash", "city")])
+
+print("\nSuccess! Personal identifiers are now protected!")
+```
+
+### What Can We Still Do with Anonymized Data?
+
+```{r}
+print("ANALYZING WHAT'S STILL POSSIBLE AFTER ANONYMIZATION")
+
+print("Analyses we can STILL do:")
+
+# 1. Count customers by city
+city_analysis <- customers_anonymized %>%
+  group_by(city) %>%
+  summarise(
+    customer_count = n(),
+    avg_purchase = round(mean(purchase_amount), 2),
+    total_sales = sum(purchase_amount)
+  )
+
+print("1. Sales by city:")
+print(city_analysis)
+
+# 2. Product category analysis
+category_analysis <- customers_anonymized %>%
+  group_by(product_category) %>%
+  summarise(
+    customer_count = n(),
+    avg_purchase = round(mean(purchase_amount), 2)
+  )
+
+print("\n2. Sales by product category:")
+print(category_analysis)
+
+# 3. Can we still identify repeat customers? Let's test!
+print("\n3. Testing repeat customer detection:")
+print("Looking for customers who appear multiple times...")
+
+# In our sample data, we don't have repeats, but let's simulate
+test_data <- data.frame(
+  customer_hash = c("abc123", "def456", "abc123", "ghi789"),
+  purchase = c(100, 200, 150, 300)
+)
+
+repeat_customers <- test_data %>%
+  group_by(customer_hash) %>%
+  summarise(
+    total_purchases = n(),
+    total_spent = sum(purchase)
+  ) %>%
+  filter(total_purchases > 1)
+
+print("Repeat customers found:")
+print(repeat_customers)
+print("YES! We can still track customer behavior patterns!")
+
+print("\nAnalyses we CAN'T do anymore:")
+print("- Contact customers directly (no email/phone)")
+print("- Link to other databases (no real customer ID)")  
+print("- Identify specific individuals")
+print("NOTE: This is the trade-off: Better privacy, some functionality lost")
+```
+
+---
+
+## Exercise 4: Advanced Anonymization Strategies
+
+### Different Levels of Protection
+
+Sometimes you need different levels of anonymization for different situations:
+
+```{r}
+print("CREATING DIFFERENT PROTECTION LEVELS")
+
+print("Think of these like security settings on your phone:")
+print("Low: Passcode only")  
+print("Medium: Passcode + Face ID")
+print("High: Passcode + Face ID + Fingerprint + Voice recognition")
+
+create_protection_levels <- function(original_data) {
+  
+  # LEVEL 1: Light Protection (for internal use)
+  print("\nLEVEL 1: Light Protection")
+  print("Good for: Internal analytics, trusted partners")
+  
+  level1 <- original_data %>%
+    mutate(
+      # Hash direct identifiers
+      name_hash = anonymize_column(name),
+      customer_hash = anonymize_column(customer_id),
+      
+      # Keep email domain (useful for analysis)
+      email_domain = sub(".*@", "", email),  # Removes everything before @
+      
+      # Keep city (useful for regional analysis)
+      city = city,
+      
+      # Keep exact purchase amounts and categories
+      purchase_amount = purchase_amount,
+      product_category = product_category
+    ) %>%
+    select(-name, -customer_id, -email)  # Remove original identifiers
+  
+  print("What's protected: Names, Customer IDs, Email addresses")
+  print("What's kept: Email domains, Cities, Exact purchase amounts")
+  print("Example:")
+  print(level1[1:2, ])
+  
+  # LEVEL 2: Medium Protection (for external partners)
+  print("\nLEVEL 2: Medium Protection") 
+  print("Good for: External research partners, vendors")
+  
+  level2 <- original_data %>%
+    mutate(
+      # Hash all identifiers
+      record_hash = anonymize_column(paste(customer_id, name)),
+      contact_hash = anonymize_column(email),
+      
+      # Generalize location (less specific)
+      region = case_when(
+        city == "New York" ~ "East",
+        city == "Los Angeles" ~ "West", 
+        city == "Chicago" ~ "Central"
+      ),
+      
+      # Group purchase amounts into bands
+      purchase_band = case_when(
+        purchase_amount < 100 ~ "Low ($0-99)",
+        purchase_amount < 200 ~ "Medium ($100-199)", 
+        TRUE ~ "High ($200+)"
+      ),
+      
+      # Keep product category
+      product_category = product_category
+    ) %>%
+    select(record_hash, contact_hash, region, purchase_band, product_category)
+  
+  print("What's protected: All personal info, Exact locations, Exact amounts")
+  print("What's kept: General regions, Purchase ranges, Product categories")
+  print("Example:")
+  print(level2[1:2, ])
+  
+  # LEVEL 3: High Protection (for public datasets)
+  print("\nLEVEL 3: High Protection")
+  print("Good for: Public research, regulatory compliance")
+  
+  level3 <- original_data %>%
+    mutate(
+      # Single hash for entire record
+      record_id = anonymize_column(paste(customer_id, name, email, city)),
+      
+      # Very general location
+      location_type = case_when(
+        city %in% c("New York", "Los Angeles", "Chicago") ~ "Major City",
+        TRUE ~ "Other"
+      ),
+      
+      # Convert to relative rankings instead of amounts
+      purchase_rank = rank(purchase_amount),
+      
+      # Keep only general category groupings
+      category_group = case_when(
+        product_category == "Electronics" ~ "Tech",
+        product_category %in% c("Clothing", "Home") ~ "Lifestyle"
+      )
+    ) %>%
+    select(record_id, location_type, purchase_rank, category_group)
+  
+  print("What's protected: Everything specific")
+  print("What's kept: General patterns, Relative rankings")
+  print("Example:")
+  print(level3[1:2, ])
+  
+  return(list(light = level1, medium = level2, high = level3))
+}
+
+# Create all protection levels
+protection_levels <- create_protection_levels(customers)
+```
+
+### Comparing What's Still Possible
+
+```{r}
+print("COMPARING ANALYTICAL CAPABILITIES")
+
+analyze_capabilities <- function(original, levels) {
+  
+  print("ORIGINAL DATA ANALYSIS:")
+  orig_analysis <- original %>%
+    group_by(city) %>%
+    summarise(
+      customers = n(),
+      avg_purchase = round(mean(purchase_amount), 2),
+      total_revenue = sum(purchase_amount)
+    )
+  print(orig_analysis)
+  
+  print("\nLIGHT PROTECTION ANALYSIS:")
+  print("Can still do: Regional sales analysis")
+  light_analysis <- levels$light %>%
+    group_by(city) %>%
+    summarise(
+      customers = n(),
+      avg_purchase = round(mean(purchase_amount), 2)
+    )
+  print(light_analysis)
+  
+  print("\nMEDIUM PROTECTION ANALYSIS:")
+  print("Can still do: Regional trends (less specific)")
+  medium_analysis <- levels$medium %>%
+    group_by(region) %>%
+    summarise(customers = n())
+  print(medium_analysis)
+  
+  print("\nHIGH PROTECTION ANALYSIS:")
+  print("Can still do: General patterns only")
+  high_analysis <- levels$high %>%
+    group_by(location_type) %>%
+    summarise(customers = n())
+  print(high_analysis)
+  
+  print("\nSUMMARY:")
+  print("Light -> Medium -> High Protection")
+  print("More Privacy UP")
+  print("Less Detailed Analysis DOWN")
+}
+
+analyze_capabilities(customers, protection_levels)
+```
+
+---
+
+## Exercise 5: Spotting Privacy Risks
+
+### Becoming a Privacy Detective
+
+Even anonymized data can have risks! Let's learn to spot them:
+
+```{r}
+print("BECOMING A PRIVACY DETECTIVE")
+
+# Create a risky dataset to analyze
+risky_data <- data.frame(
+  employee_hash = anonymize_column(paste0("EMP", 101:108)),
+  department = c("IT", "HR", "Finance", "IT", "Legal", "IT", "Marketing", "Finance"),
+  salary_level = c("High", "Medium", "Very High", "Medium", "Extremely High", "High", "Low", "Medium"),
+  years_experience = c(5, 3, 15, 2, 20, 7, 1, 4),
+  office_location = c("NYC", "NYC", "LA", "NYC", "LA", "NYC", "Chicago", "LA"),
+  bonus_percent = c(15, 10, 25, 8, 30, 18, 5, 12)
+)
+
+print("Sample 'anonymized' employee dataset:")
+print(risky_data)
+
+print("\nLet's look for privacy risks...")
+
+# Risk Detection Function
+detect_privacy_risks <- function(data) {
+  
+  print("RISK ANALYSIS:")
+  
+  # Risk 1: Unique combinations
+  print("\n1. UNIQUENESS RISK:")
+  unique_combinations <- data %>%
+    group_by(department, office_location, salary_level) %>%
+    summarise(count = n(), .groups = 'drop') %>%
+    filter(count == 1)
+  
+  print(paste("Employees with unique combinations:", nrow(unique_combinations)))
+  if(nrow(unique_combinations) > 0) {
+    print("WARNING: These employees could be identified:")
+    print(unique_combinations)
+  }
+  
+  # Risk 2: Outliers
+  print("\n2. OUTLIER RISK:")
+  outliers <- data %>%
+    filter(salary_level %in% c("Very High", "Extremely High") | 
+           years_experience >= 15 | 
+           bonus_percent >= 25)
+  
+  print("WARNING: Employees with extreme values (easily identifiable):")
+  print(outliers[, c("department", "salary_level", "years_experience", "bonus_percent")])
+  
+  # Risk 3: Small groups
+  print("\n3. SMALL GROUP RISK:")
+  small_groups <- data %>%
+    group_by(department) %>%
+    summarise(count = n()) %>%
+    filter(count <= 2)
+  
+  print("WARNING: Departments with very few employees:")
+  print(small_groups)
+  
+  # Risk 4: Inference attacks
+  print("\n4. INFERENCE RISK:")
+  print("If someone knows:")
+  print("- 'There's a Legal department employee in LA'")
+  print("- 'Someone has 20 years experience'") 
+  print("- 'Someone gets 30% bonus'")
+  print("They could combine these clues to identify individuals!")
+}
+
+detect_privacy_risks(risky_data)
+```
+
+### Fixing Privacy Risks
+
+```{r}
+print("FIXING PRIVACY RISKS")
+
+fix_privacy_risks <- function(risky_data) {
+  
+  print("Strategy 1: GENERALIZATION")
+  print("Make data less specific")
+  
+  fixed_v1 <- risky_data %>%
+    mutate(
+      # Group experience into broader bands
+      experience_band = case_when(
+        years_experience <= 3 ~ "Junior (0-3)",
+        years_experience <= 10 ~ "Mid (4-10)", 
+        TRUE ~ "Senior (11+)"
+      ),
+      
+      # Simplify salary levels
+      salary_simple = case_when(
+        salary_level %in% c("Low", "Medium") ~ "Standard",
+        TRUE ~ "Above Standard"
+      ),
+      
+      # Group locations into regions
+      region = case_when(
+        office_location == "NYC" ~ "East",
+        office_location == "LA" ~ "West",
+        TRUE ~ "Central"
+      ),
+      
+      # Group bonus into ranges
+      bonus_range = case_when(
+        bonus_percent <= 10 ~ "Standard (<=10%)",
+        bonus_percent <= 20 ~ "Good (11-20%)",
+        TRUE ~ "Excellent (21%+)"
+      )
+    ) %>%
+    select(employee_hash, department, experience_band, salary_simple, region, bonus_range)
+  
+  print("Version 1 - Generalized:")
+  print(fixed_v1)
+  
+  print("\nStrategy 2: SUPPRESSION")
+  print("Remove risky records or attributes")
+  
+  # Remove departments with < 3 people
+  dept_counts <- risky_data %>% count(department) 
+  safe_depts <- dept_counts %>% filter(n >= 2) %>% pull(department)
+  
+  fixed_v2 <- risky_data %>%
+    filter(department %in% safe_depts) %>%
+    mutate(
+      # Remove extreme outliers
+      years_capped = pmin(years_experience, 12),  # Cap at 12 years
+      bonus_capped = pmin(bonus_percent, 20),     # Cap at 20%
+      
+      # Further generalize
+      dept_group = case_when(
+        department %in% c("IT", "Marketing") ~ "Technical",
+        department %in% c("HR", "Finance") ~ "Business"
+      )
+    ) %>%
+    select(employee_hash, dept_group, years_capped, bonus_capped, office_location)
+  
+  print("Version 2 - Suppressed risky elements:")
+  print(fixed_v2)
+  
+  return(list(generalized = fixed_v1, suppressed = fixed_v2))
+}
+
+fixed_data <- fix_privacy_risks(risky_data)
+
+# Test the fixes
+print("\nTESTING OUR FIXES:")
+
+print("Checking for unique combinations in fixed data...")
+unique_after_fix <- fixed_data$generalized %>%
+  group_by(department, region, salary_simple) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  filter(count == 1)
+
+print(paste("Unique combinations after fixing:", nrow(unique_after_fix)))
+if(nrow(unique_after_fix) == 0) {
+  print("SUCCESS! No more unique combinations!")
+} else {
+  print("WARNING: Still some risks remain")
+}
+```
+
+---
+
+## Exercise 6: Complete Data Protection Workflow
+
+### Building Your Data Protection Factory
+
+Let's put everything together into a complete workflow:
+
+```{r}
+print("BUILDING YOUR DATA PROTECTION FACTORY")
+
+# Complete data protection pipeline
+data_protection_factory <- function(raw_data, protection_level = "medium", purpose = "analytics") {
+  
+  print(paste("Processing data for:", purpose))
+  print(paste("Protection level:", protection_level))
+  
+  # Step 1: Identify data types
+  print("\nSTEP 1: Data Classification")
+  
+  # Identify different types of data
+  direct_identifiers <- c("name", "email", "customer_id", "phone")
+  quasi_identifiers <- c("city", "zip_code", "age", "job_title") 
+  sensitive_attributes <- c("salary", "medical_condition", "purchase_amount")
+  public_attributes <- c("product_category", "rating", "review_text")
+  
+  print("Data types identified:")
+  print(paste("Direct identifiers:", paste(direct_identifiers, collapse = ", ")))
+  print(paste("Quasi identifiers:", paste(quasi_identifiers, collapse = ", ")))
+  print(paste("Sensitive attributes:", paste(sensitive_attributes, collapse = ", ")))
+  print(paste("Public attributes:", paste(public_attributes, collapse = ", ")))
+  
+  # Step 2: Apply protection based on level
+  print("\nSTEP 2: Applying Protection")
+  
+  if(protection_level == "low") {
+    print("Applying light protection...")
+    
+    protected_data <- raw_data %>%
+      mutate(
+        # Hash direct identifiers only
+        customer_hash = if("customer_id" %in% names(raw_data)) anonymize_column(customer_id) else NA,
+        name_hash = if("name" %in% names(raw_data)) anonymize_column(name) else NA,
+        email_hash = if("email" %in% names(raw_data)) anonymize_column(email) else NA
+      ) %>%
+      select(-any_of(c("customer_id", "name", "email")))
+    
+  } else if(protection_level == "medium") {
+    print("Applying medium protection...")
+    
+    protected_data <- raw_data %>%
+      mutate(
+        # Hash identifiers
+        record_hash = anonymize_column(paste0(row_number(), 
+                                            if("name" %in% names(raw_data)) name else "",
+                                            if("customer_id" %in% names(raw_data)) customer_id else "")),
+        
+        # Generalize quasi-identifiers
+        city_region = if("city" %in% names(raw_data)) {
+          case_when(
+            city %in% c("New York", "Boston", "Philadelphia") ~ "Northeast",
+            city %in% c("Los Angeles", "San Francisco", "Seattle") ~ "West",
+            city %in% c("Chicago", "Detroit", "Minneapolis") ~ "Midwest",
+            TRUE ~ "Other"
+          )
+        } else NA,
+        
+        # Categorize sensitive data
+        purchase_band = if("purchase_amount" %in% names(raw_data)) {
+          ntile(purchase_amount, 3)  # Divide into 3 groups: 1=Low, 2=Medium, 3=High
+        } else NA
+      ) %>%
+      select(-any_of(c("customer_id", "name", "email", "city", "purchase_amount")))
+    
+  } else {  # high protection
+    print("Applying high protection...")
+    
+    protected_data <- raw_data %>%
+      mutate(
+        # Single hash for entire record
+        record_id = anonymize_column(paste0(row_number(), Sys.time())),
+        
+        # Very general categories only
+        region_type = if("city" %in% names(raw_data)) {
+          if(city %in% c("New York", "Los Angeles", "Chicago")) "Major Metro" else "Other"
+        } else NA,
+        
+        # Relative rankings instead of actual values
+        value_percentile = if("purchase_amount" %in% names(raw_data)) {
+          round(rank(purchase_amount) / length(purchase_amount) * 100)
+        } else NA,
+        
+        # Keep only very general categories
+        category = if("product_category" %in% names(raw_data)) product_category else NA
+      ) %>%
+      select(record_id, region_type, value_percentile, category) %>%
+      filter(!is.na(record_id))  # Remove any rows with missing data
+  }
+  
+  # Step 3: Quality check
+  print("\nSTEP 3: Quality Check")
+  
+  original_rows <- nrow(raw_data)
+  protected_rows <- nrow(protected_data)
+  original_cols <- ncol(raw_data)
+  protected_cols <- ncol(protected_data)
+  
+  print(paste("Data retention:", round(protected_rows/original_rows * 100, 1), "% of rows"))
+  print(paste("Field retention:", round(protected_cols/original_cols * 100, 1), "% of columns"))
+  
+  # Step 4: Risk assessment
+  print("\nSTEP 4: Final Risk Assessment")
+  
+  # Check for remaining uniqueness
+  if(ncol(protected_data) > 1) {
+    unique_records <- protected_data %>%
+      group_by_all() %>%
+      summarise(count = n(), .groups = 'drop') %>%
+      filter(count == 1) %>%
+      nrow()
+    
+    print(paste("Unique record combinations:", unique_records))
+    
+    if(unique_records == 0) {
+      print("EXCELLENT: No unique combinations found!")
+    } else if(unique_records < nrow(protected_data) * 0.1) {
+      print("ACCEPTABLE: Few unique combinations (<10%)")
+    } else {
+      print("WARNING: Many unique combinations - consider higher protection!")
+    }
+  }
+  
+  return(list(
+    data = protected_data,
+    summary = list(
+      original_rows = original_rows,
+      protected_rows = protected_rows,
+      original_cols = original_cols, 
+      protected_cols = protected_cols,
+      protection_level = protection_level,
+      purpose = purpose
+    )
+  ))
+}
+
+# Test our factory with different settings
+print("TESTING OUR DATA PROTECTION FACTORY")
+
+print("\n==========================================")
+print("Test 1: Low Protection for Internal Analytics")
+low_protection <- data_protection_factory(customers, "low", "internal analytics")
+print("Sample output:")
+print(head(low_protection$data, 3))
+
+print("\n==========================================")
+print("Test 2: Medium Protection for Partner Sharing")
+medium_protection <- data_protection_factory(customers, "medium", "partner sharing")
+print("Sample output:")
+print(head(medium_protection$data, 3))
+
+print("\n==========================================")
+print("Test 3: High Protection for Public Research")
+high_protection <- data_protection_factory(customers, "high", "public research")
+print("Sample output:")
+print(head(high_protection$data, 3))
+```
+
+### Validation and Testing
+
+```{r}
+print("VALIDATION: Testing Our Protection Works")
+
+# Create a comprehensive test
+validate_protection <- function(original, protected_list) {
+  
+  print("RUNNING PROTECTION VALIDATION TESTS...")
+  
+  for(level_name in names(protected_list)) {
+    protected_result <- protected_list[[level_name]]
+    protected_data <- protected_result$data
+    
+    print(paste("\nTesting", toupper(level_name), "protection level:"))
+    
+    # Test 1: No direct identifiers remain
+    print("1. Checking for direct identifiers...")
+    risky_columns <- intersect(names(protected_data), c("name", "email", "customer_id", "phone"))
+    if(length(risky_columns) == 0) {
+      print("   PASS: No direct identifiers found")
+    } else {
+      print(paste("   FAIL: Found risky columns:", paste(risky_columns, collapse = ", ")))
+    }
+    
+    # Test 2: Check data utility
+    print("2. Checking data utility...")
+    if(ncol(protected_data) >= 2 && nrow(protected_data) > 0) {
+      print("   PASS: Data still useful for analysis")
+      
+      # Show what analysis is still possible
+      if("purchase_band" %in% names(protected_data)) {
+        band_analysis <- table(protected_data$purchase_band)
+        print(paste("   Purchase distribution:", paste(names(band_analysis), "=", band_analysis, collapse = ", ")))
+      }
+      
+      if("city_region" %in% names(protected_data)) {
+        region_analysis <- table(protected_data$city_region)
+        print(paste("   Regional distribution:", paste(names(region_analysis), "=", region_analysis, collapse = ", ")))
+      }
+      
+    } else {
+      print("   WARNING: Very limited data utility")
+    }
+    
+    # Test 3: Uniqueness check
+    print("3. Checking uniqueness risks...")
+    if(ncol(protected_data) > 1) {
+      unique_count <- protected_data %>%
+        group_by_all() %>%
+        summarise(count = n(), .groups = 'drop') %>%
+        filter(count == 1) %>%
+        nrow()
+      
+      unique_percentage <- round(unique_count / nrow(protected_data) * 100, 1)
+      print(paste("   Unique combinations:", unique_count, "out of", nrow(protected_data), paste0("(", unique_percentage, "%)")))
+      
+      if(unique_percentage <= 5) {
+        print("   PASS: Low uniqueness risk")
+      } else if(unique_percentage <= 15) {
+        print("   CAUTION: Moderate uniqueness risk")
+      } else {
+        print("   FAIL: High uniqueness risk")
+      }
+    }
+  }
+  
+  # Overall recommendation
+  print("\nOVERALL RECOMMENDATIONS:")
+  print("Low Protection: Use for internal analytics with access controls")
+  print("Medium Protection: Good for trusted business partners")  
+  print("High Protection: Safe for public research or regulatory compliance")
+}
+
+# Run validation on our test results
+protection_results <- list(
+  low = low_protection,
+  medium = medium_protection, 
+  high = high_protection
+)
+
+validate_protection(customers, protection_results)
+```
+
+---
+
+## Exercise 7: Introduction to Real Encryption Concepts
+
+### Understanding Public Key Encryption (Conceptual)
+
+Since we can't run real encryption easily, let's understand the concepts:
+
+```{r}
+print("UNDERSTANDING PUBLIC KEY ENCRYPTION")
+
+# Simulation of the key exchange process
+simulate_key_exchange <- function() {
+  
+  print("THE MAILBOX ANALOGY IN ACTION:")
+  print("")
+  
+  print("Step 1: Alice and Bob each get a mailbox")
+  print("   - Alice gets mailbox #A with key #A")
+  print("   - Bob gets mailbox #B with key #B")
+  print("   - Everyone knows the mailbox numbers (public keys)")
+  print("   - Only owners have the keys (private keys)")
+  
+  # Simulate this with simple "keys"
+  set.seed(42)  # For consistent results
+  alice_public <- "MAILBOX_A_12345"
+  alice_private <- "KEY_A_67890" 
+  bob_public <- "MAILBOX_B_54321"
+  bob_private <- "KEY_B_09876"
+  
+  print("\nStep 2: Alice wants to send Bob a secret message")
+  secret_message <- "Meet me at the coffee shop at 3pm"
+  print(paste("Secret message:", secret_message))
+  
+  print("\nStep 3: Alice 'encrypts' using Bob's mailbox number")
+  # Simulate encryption (not real encryption!)
+  encrypted_message <- digest(paste(secret_message, bob_public), algo = "sha256")
+  print(paste("Encrypted message:", substr(encrypted_message, 1, 32), "..."))
+  print("NOTE: Only Bob's key can 'unlock' this!")
+  
+  print("\nStep 4: Alice sends the encrypted message")
+  print("   - Anyone can see the encrypted message")
+  print("   - But only Bob can decrypt it with his private key")
+  
+  print("\nStep 5: Bob receives and decrypts")
+  print(paste("Bob uses his private key:", substr(bob_private, 1, 16), "..."))
+  print("SUCCESS: Bob successfully reads: 'Meet me at the coffee shop at 3pm'")
+  
+  print("\nStep 6: What if someone else tries to read it?")
+  print("   - Charlie finds the encrypted message")
+  print("   - Charlie doesn't have Bob's private key")
+  print("   - Charlie can't decrypt the message")
+  print("   - Message stays secret!")
+  
+  return(list(
+    alice_public = alice_public,
+    bob_public = bob_public,
+    encrypted = encrypted_message
+  ))
+}
+
+encryption_demo <- simulate_key_exchange()
+
+# Understanding the differences
+print("\nENCRYPTION vs HASHING - When to use what?")
+
+comparison_table <- data.frame(
+  Aspect = c("Purpose", "Reversible?", "Key needed?", "Use case", "Example"),
+  Hashing = c(
+    "Hide identity permanently", 
+    "No - one way only",
+    "No key needed", 
+    "Anonymize customer names",
+    "John Smith -> a1b2c3d4..."
+  ),
+  Encryption = c(
+    "Hide temporarily", 
+    "Yes - with correct key",
+    "Yes - public/private keys",
+    "Send secret messages", 
+    "Secret message -> xyz789... -> Secret message"
+  )
+)
+
+print("COMPARISON TABLE:")
+for(i in 1:nrow(comparison_table)) {
+  cat(sprintf("%-15s | %-25s | %-25s\n", 
+              comparison_table$Aspect[i], 
+              comparison_table$Hashing[i], 
+              comparison_table$Encryption[i]))
+}
+```
+
+### File Protection Concepts
+
+```{r}
+print("FILE PROTECTION CONCEPTS")
+
+# Simulate file protection workflow
+simulate_file_protection <- function(file_data, protection_type = "encryption") {
+  
+  print(paste("Simulating", protection_type, "for file protection"))
+  
+  if(protection_type == "encryption") {
+    print("\nENCRYPTION WORKFLOW:")
+    print("1. Original file: customer_data.csv")
+    print("2. Encrypt with recipient's public key")
+    print("3. Send encrypted file: customer_data.csv.encrypted") 
+    print("4. Recipient decrypts with their private key")
+    print("5. Original file restored perfectly")
+    
+    # Show the concept
+    original_preview <- paste(names(file_data), collapse = ", ")
+    print(paste("\nOriginal columns:", original_preview))
+    
+    encrypted_representation <- "ENCRYPTED DATA (unreadable)"
+    print(paste("Encrypted version:", encrypted_representation))
+    print("SUCCESS: After decryption: Exactly the same as original!")
+    
+  } else {  # hashing/anonymization
+    print("\nANONYMIZATION WORKFLOW:")
+    print("1. Original file: customer_data.csv")
+    print("2. Anonymize sensitive columns") 
+    print("3. Send anonymized file: customer_data_anonymized.csv")
+    print("4. Recipient can analyze but not identify people")
+    print("5. Original identities cannot be recovered")
+    
+    # Show the concept
+    original_cols <- names(file_data)
+    anonymized_cols <- gsub("(name|email|customer_id)", "\\1_hash", original_cols)
+    
+    print(paste("\nOriginal columns:", paste(original_cols, collapse = ", ")))
+    print(paste("Anonymized columns:", paste(anonymized_cols, collapse = ", ")))
+    print("PERMANENT: Original names/emails cannot be recovered!")
+  }
+}
+
+# Test both approaches
+simulate_file_protection(customers, "encryption")
+simulate_file_protection(customers, "anonymization")
+```
+
+---
+
+## Exercise 8: Real-World Decision Making
+
+### Scenario-Based Practice
+
+Let's practice making the right choice for different situations:
+
+```{r}
+print("SCENARIO-BASED DECISION MAKING")
+
+# Create different scenarios
+scenarios <- list(
+  
+  scenario1 = list(
+    title = "Hospital Research Partnership",
+    description = "A hospital wants to share patient data with a university for cancer research",
+    data_types = c("patient_name", "diagnosis", "treatment_outcome", "age", "gender"),
+    requirements = c("Researchers cannot identify patients", "Must track treatment effectiveness", "Comply with medical privacy laws"),
+    stakeholders = c("Hospital", "University researchers", "Patients", "Regulators")
+  ),
+  
+  scenario2 = list(
+    title = "E-commerce Marketing Analysis", 
+    description = "Online store wants external agency to analyze customer behavior",
+    data_types = c("customer_email", "purchase_history", "browsing_behavior", "location", "demographics"),
+    requirements = c("Enable targeted marketing", "Protect customer privacy", "Track repeat customers", "Identify regional trends"),
+    stakeholders = c("E-commerce company", "Marketing agency", "Customers")
+  ),
+  
+  scenario3 = list(
+    title = "Employee Salary Survey",
+    description = "HR consulting firm collecting salary data across companies",
+    data_types = c("employee_name", "company", "job_title", "salary", "experience_years"),
+    requirements = c("Industry benchmarking", "Complete anonymity", "Prevent company identification", "Enable statistical analysis"),
+    stakeholders = c("HR firms", "Companies", "Employees", "Industry associations")
+  )
+)
+
+# Decision-making framework
+make_protection_decision <- function(scenario) {
+  
+  print(paste("SCENARIO:", scenario$title))
+  print(paste("Description:", scenario$description))
+  print("")
+  
+  print("ANALYSIS:")
+  print(paste("Data types:", paste(scenario$data_types, collapse = ", ")))
+  print(paste("Requirements:", paste(scenario$requirements, collapse = "; ")))
+  print(paste("Stakeholders:", paste(scenario$stakeholders, collapse = ", ")))
+  
+  print("\nDECISION PROCESS:")
+  
+  # Step 1: Classify data sensitivity
+  direct_ids <- scenario$data_types[grepl("name|email|id", scenario$data_types)]
+  sensitive_data <- scenario$data_types[grepl("salary|medical|diagnosis", scenario$data_types)]
+  quasi_ids <- scenario$data_types[grepl("age|location|title|company", scenario$data_types)]
+  
+  print("1. Data Classification:")
+  if(length(direct_ids) > 0) print(paste("   Direct identifiers:", paste(direct_ids, collapse = ", ")))
+  if(length(sensitive_data) > 0) print(paste("   Sensitive data:", paste(sensitive_data, collapse = ", ")))
+  if(length(quasi_ids) > 0) print(paste("   Quasi-identifiers:", paste(quasi_ids, collapse = ", ")))
+  
+  # Step 2: Determine protection level needed
+  needs_anonymity <- any(grepl("anonymity|cannot identify|privacy", scenario$requirements))
+  needs_tracking <- any(grepl("track|repeat|effectiveness", scenario$requirements))
+  has_regulations <- any(grepl("medical|privacy laws|comply", scenario$requirements))
+  
+  print("\n2. Protection Requirements:")
+  print(paste("   Needs strong anonymity:", needs_anonymity))
+  print(paste("   Needs to track individuals:", needs_tracking))
+  print(paste("   Has regulatory requirements:", has_regulations))
+  
+  # Step 3: Make recommendation
+  print("\n3. RECOMMENDATION:")
+  
+  if(has_regulations && needs_anonymity) {
+    recommendation <- "HIGH protection with strong anonymization"
+    techniques <- c("Hash all direct identifiers", "Generalize quasi-identifiers", "Remove outliers", "Use k-anonymity")
+  } else if(needs_tracking && !needs_anonymity) {
+    recommendation <- "MEDIUM protection with pseudonymization" 
+    techniques <- c("Hash direct identifiers", "Keep tracking codes", "Generalize some attributes", "Controlled access")
+  } else if(needs_anonymity) {
+    recommendation <- "HIGH protection with full anonymization"
+    techniques <- c("Hash all identifiers", "Heavy generalization", "Remove rare combinations", "Statistical disclosure control")
+  } else {
+    recommendation <- "LOW to MEDIUM protection"
+    techniques <- c("Hash direct identifiers", "Light generalization", "Access controls", "Data use agreements")
+  }
+  
+  print(paste("   Recommended approach:", recommendation))
+  print("   Specific techniques:")
+  for(technique in techniques) {
+    print(paste("      -", technique))
+  }
+  
+  # Step 4: Implementation example
+  print("\n4. IMPLEMENTATION EXAMPLE:")
+  
+  if(grepl("HIGH", recommendation)) {
+    print("   Sample anonymized data structure:")
+    print("   record_hash | age_band | region | outcome_category | analysis_group")
+    print("   abc123...   | 40-60    | North  | Positive        | Group_A")
+  } else if(grepl("MEDIUM", recommendation)) {
+    print("   Sample pseudonymized data structure:")
+    print("   customer_hash | demographics | behavior_pattern | region")
+    print("   xyz789...     | Adult_Male   | High_Activity   | Urban")  
+  } else {
+    print("   Sample protected data structure:")
+    print("   user_hash | category | value_range | location_type")
+    print("   def456... | Type_A   | Medium     | Metro")
+  }
+  
+  return(list(
+    protection_level = recommendation,
+    techniques = techniques
+  ))
+}
+
+# Analyze each scenario
+for(i in 1:length(scenarios)) {
+  print(paste(rep("=", 60), collapse = ""))
+  decision <- make_protection_decision(scenarios[[i]])
+  print(paste("\nDecision recorded for scenario", i))
+}
+```
+
+---
+
+## Final Challenge: Build Your Own Protection System
+
+### Your Capstone Project
+
+```{r}
+print("FINAL CHALLENGE: Build Your Own Protection System")
+
+print("YOUR MISSION:")
+print("Create a complete data protection system that can handle multiple scenarios")
+print("and automatically choose the right protection level!")
+
+# Template for your protection system
+your_protection_system <- function(data, scenario_type, regulatory_level = "medium") {
+  
+  print(paste("YOUR PROTECTION SYSTEM - Processing", scenario_type, "scenario"))
+  
+  # TODO: Add your code here!
+  # Hints for what to include:
+  
+  print("Step 1: Analyze the input data")
+  # - Identify column types (direct ID, quasi-ID, sensitive, public)
+  # - Count number of records
+  # - Check for outliers or unique combinations
+  
+  print("Step 2: Determine protection requirements")
+  # - Based on scenario_type, decide what's needed
+  # - Consider regulatory requirements
+  # - Balance privacy vs utility
+  
+  print("Step 3: Apply appropriate techniques") 
+  # - Choose hashing algorithms
+  # - Decide on generalization levels
+  # - Handle special cases
+  
+  print("Step 4: Validate protection")
+  # - Check for uniqueness risks
+  # - Verify data utility is preserved
+  # - Generate protection report
+  
+  print("YOUR CODE GOES HERE!")
+  print("Implement the steps above using techniques you've learned")
+  
+  # Return a placeholder for now
+  return(list(
+    protected_data = data.frame(placeholder = "Your protected data here"),
+    protection_report = "Your protection analysis here",
+    recommendations = "Your recommendations here"
+  ))
+}
+
+# Test framework for your system
+test_your_system <- function() {
+  
+  print("TESTING YOUR PROTECTION SYSTEM")
+  
+  # Test Case 1: Small customer dataset
+  test_data1 <- customers[1:5, ]
+  result1 <- your_protection_system(test_data1, "customer_analytics", "low")
+  
+  # Test Case 2: Employee data (high sensitivity)
+  test_data2 <- data.frame(
+    name = c("Alice", "Bob", "Carol"),
+    department = c("IT", "HR", "Finance"), 
+    salary = c(70000, 80000, 90000)
+  )
+  result2 <- your_protection_system(test_data2, "hr_analysis", "high")
+  
+  print("All test cases completed!")
+  print("Now implement your protection logic!")
+}
+
+# Run the test framework
+test_your_system()
+```
+
+---
+
+## Summary and Next Steps
+
+### What You've Accomplished
+
+```{r}
+print("CONGRATULATIONS! You've completed the encryption & anonymization course!")
+
+print("\nSKILLS YOU'VE MASTERED:")
+skills_learned <- c(
+  "Understanding the difference between encryption and hashing",
+  "Implementing data anonymization in R", 
+  "Solving the vectorization challenge with sapply()",
+  "Creating different levels of data protection",
+  "Identifying and mitigating privacy risks",
+  "Building complete data protection workflows",
+  "Making informed decisions about protection strategies",
+  "Balancing privacy protection with data utility"
+)
+
+for(skill in skills_learned) {
+  print(paste("SUCCESS:", skill))
+}
+
+print("\nTECHNIQUES YOU CAN USE:")
+techniques_mastered <- c(
+  "digest() function for hashing",
+  "sapply() for vectorized operations", 
+  "Multi-level anonymization strategies",
+  "Privacy risk assessment methods",
+  "Data classification frameworks",
+  "Uniqueness and outlier detection",
+  "Regulatory compliance approaches"
+)
+
+for(technique in techniques_mastered) {
+  print(paste("TOOL:", technique))
+}
+
+print("\nNEXT STEPS FOR ADVANCED LEARNING:")
+next_steps <- c(
+  "1. Learn real encryption with {encryptr} package",
+  "2. Study k-anonymity and l-diversity",
+  "3. Explore differential privacy",
+  "4. Research GDPR and HIPAA requirements", 
+  "5. Practice with real company datasets",
+  "6. Join data privacy communities and forums",
+  "7. Read latest research in privacy-preserving analytics"
+)
+
+for(step in next_steps) {
+  print(step)
+}
+
+print("\nKEY TAKEAWAYS:")
+print("REMEMBER: There's always a trade-off between privacy and utility")
+print("REMEMBER: Choose your protection level based on your specific use case")
+print("REMEMBER: Always test your anonymization for remaining risks")
+print("REMEMBER: When in doubt, err on the side of stronger protection")
+
+print("\nYou're now ready to protect data responsibly in the real world!")
+```
+
+### Community and Practice
+
+```{r}
+print("JOINING THE DATA PRIVACY COMMUNITY")
+
+print("Recommended resources for continued learning:")
+resources <- c(
+  "Books: 'Anonymization of Electronic Medical Records' by Khaled El Emam",
+  "Websites: https://privacytools.io for general privacy tools",
+  "Videos: Search 'Differential Privacy' and 'K-Anonymity' on educational platforms",
+  "Newsletters: Subscribe to privacy-focused tech newsletters",
+  "Regulations: Read simplified guides to GDPR, CCPA, and HIPAA"
+)
+
+for(resource in resources) {
+  print(paste("RESOURCE:", resource))
+}
+
+print("\nAPPLYING THESE SKILLS IN YOUR CAREER:")
+career_applications <- c(
+  "Healthcare: Anonymize patient data for research",
+  "E-commerce: Protect customer data while enabling analytics", 
+  "Finance: Comply with financial privacy regulations",
+  "Education: Anonymize student data for institutional research",
+  "HR: Protect employee data in surveys and analysis",
+  "Consulting: Help clients implement privacy-preserving analytics"
+)
+
+for(application in career_applications) {
+  print(paste("CAREER:", application))
+}
+
+print("\nFINAL CHALLENGE:")
+print("Find a real dataset (public or from your work) and practice these techniques!")
+print("Start with the protection level framework and build from there.")
+print("Remember: Practice makes perfect!")
+```
+
+---
+
+## Quick Reference Guide
+
+### Essential Functions Cheat Sheet
+
+```{r}
+print("QUICK REFERENCE: Essential Functions")
+
+cat("
+# BASIC HASHING
+digest('text', algo = 'md5')           # Hash single item
+sapply(vector, function(x) digest(x))   # Hash multiple items
+
+# DATA PROTECTION LEVELS
+# Low:    Hash direct identifiers only
+# Medium: Hash identifiers + generalize quasi-identifiers  
+# High:   Maximum anonymization + statistical disclosure control
+
+# RISK ASSESSMENT
+data %>% group_by_all() %>% summarise(count = n()) %>% filter(count == 1)  # Find unique combinations
+
+# GENERALIZATION EXAMPLES
+case_when(
+  age <= 30 ~ 'Young',
+  age <= 50 ~ 'Middle', 
+  TRUE ~ 'Senior'
+)
+
+# ALWAYS REMEMBER
+# 1. Test for uniqueness after anonymization
+# 2. Balance privacy vs utility for your use case
+# 3. Document your protection decisions
+# 4. When in doubt, use stronger protection
+")
+```
+
+**Congratulations on completing this comprehensive introduction to data encryption and anonymization in R! You now have the knowledge and practical skills to protect sensitive data while maintaining its analytical value.**

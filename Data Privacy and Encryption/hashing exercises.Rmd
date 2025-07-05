@@ -1,0 +1,96 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+Hashing Exercise
+
+1. Use md5, sha1 and sha256 hashing algorithms to anonymize the following text:
+
+  a. Adaire Academy
+  b. adaire academy
+  c. ADAIRE ACADEMY
+  d. adaireacademy
+  
+What do you notice?
+
+2. Hash the following numeric vector : c(1, 2, 4, 6).
+What is your result?
+
+3. Convert the vector in 2 above to a characater string before hashing it. Is there a difference?
+  a. Try the integer: 12345 and the character "12345". Is the hashcode the same?
+
+4. Create a txt file called 'example.txt' with some simple text 'My name is Chantelle', and hash the file, the modify the content of the file slightly and hash it again. Is there a noticeable difference?
+Steps
+  a. Create a txt file in r using the following code structure:
+  writelines("My name is Chantelle", "example.txt")
+  digest(file = "example.txt", algo="md5")
+  
+Now modify the content of the file, adding a punctuation to the end of the content of your txt file and run the hash algorithm. Is it different?
+
+5. Create a function called password_checker, that takes in a user's password, and checks whether it's hash is the same has a stored hash code for the password.
+return "sucessful" if it is the same and "unsuccessful, try again" if it is not.
+
+function name: password_checker
+function inputs: passwords, stored_hashes (a dataframe containing passwords and their hashes)
+function output: "sucessful" or "unsuccessful, try again".
+
+# Load the digest package
+library(digest)
+
+# Sample data: usernames and their passwords
+usernames <- c("chantelle", "alex", "maria", "daniel")
+passwords <- c("sunshine123", "helloWorld", "qwerty456", "moonlight!")
+
+# Hash the passwords using SHA-256
+password_hashes <- sapply(passwords, function(pw) digest(pw, algo = "sha256"))
+
+# Create the datagram (data frame)
+password_db <- data.frame(
+  username = usernames,
+  password = passwords,
+  hash = password_hashes,
+  stringsAsFactors = FALSE
+)
+
+```{r}
+# Load the digest package
+library(digest)
+
+# Sample data: usernames and their passwords
+usernames <- c("chantelle", "alex", "maria", "daniel")
+passwords <- c("sunshine123", "helloWorld", "qwerty456", "moonlight!")
+
+# Hash the passwords using SHA-256
+password_hashes <- sapply(passwords, function(pw) digest(pw, algo = "sha256"))
+
+# Create the datagram (data frame)
+password_db <- data.frame(
+  username = usernames,
+  password = passwords,
+  hash = password_hashes,
+  stringsAsFactors = FALSE
+)
+
+password_db
+```
+```{r}
+password_checker <- function(password, db){
+  password_col <- db$passwords
+  password_hash <- db$hash
+  pwd_hash <- digest(password, algo="sha256")
+  for (i in password_col){
+    if (password %in% password_col){
+      if (pass_word)
+    }
+  }
+}
+```
+
+
+
+
+
+6. 
+  

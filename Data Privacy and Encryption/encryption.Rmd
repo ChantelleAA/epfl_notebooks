@@ -1,0 +1,124 @@
+---
+author: Chantelle
+date: 07/05/2025
+title: "Encryption and Anonymization"
+output: html_notebook
+---
+
+```{r}
+library(stringr)
+```
+
+```{r}
+letters
+```
+```{r}
+LETTERS
+```
+
+```{r}
+l <-  "l"
+for (i in 1:26){
+  l <- c(l, letters)[i]
+}
+```
+```{r}
+which(match(letters, "l")==1)
+```
+```{r}
+typeof(which(letters=="l"))
+```
+
+
+```{r}
+
+encrypted_message <- "WKLV LV D VHFUHW PHVVDJH"
+
+encrypted_message_vec <- str_split_1(encrypted_message, "")
+  
+for (letter in encrypted_message_vec){
+      letter <- tolower(letter)
+      if (grepl("[A-Za-z]", letter)){
+        print(letter)
+        ind <- which(letters==letter)
+        print(ind)
+        print(paste("The letter", letter, "is at index", ind, "in the alphabet"))
+        decrypt <- letters[ind - 3]
+        print(paste("The letter found 3 positions before", letter, "is", decrypt))
+    }
+}
+
+```
+
+
+
+Caesar Cipher
+
+```{r}
+message <- "WKLV LV D VHFUHW PHVVDJH"
+```
+
+```{r}
+decrypter <- function(letter){
+  letter <- tolower(letter)
+  for (i in 1:length(letters)){
+    if (letter == letters[i]){
+      new_letter <- letters[i-3]
+    }
+  }
+  return(new_letter)
+}
+```
+
+```{r}
+grepl("[A-Za-z]", "W")
+```
+
+```{r}
+split_message <- str_split_1(message, "")
+decoded_message <- ""
+for (i in split_message){
+  if (grepl("[A-Za-z]", i)){
+    # print(decrypter(i))
+    decoded_message <- paste0(decoded_message, decrypter(i))
+  }
+  else {
+    # print(i)
+    decoded_message <- paste0(decoded_message,i)
+  }
+}
+
+print(decoded_message)
+```
+```{r}
+my_secret <- "Dublin is the capital of Ireland"
+
+encrypter <- function(letter){
+  letter <- tolower(letter)
+  for (i in 1:length(letters)){
+    if (letter == letters[i]){
+      new_letter <- letters[i+3]
+    }
+  }
+  return(new_letter)
+}
+
+my_secret_vec <- str_split_1(my_secret, "")
+# encrypter(my_secret_vec[1])
+
+my_encoded_secret <- ""
+
+for (i in my_secret_vec){
+  if (grepl("[A-Za-z]", i)){
+    my_encoded_secret <- paste0(my_encoded_secret, encrypter(i))
+  }
+  else {
+    my_encoded_secret <- paste0(my_encoded_secret, i)
+  }
+}
+
+print(my_encoded_secret)
+```
+
+
+
